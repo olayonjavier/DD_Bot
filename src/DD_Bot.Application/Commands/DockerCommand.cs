@@ -72,6 +72,11 @@ namespace DD_Bot.Application.Commands
                         Name = "restart",
                         Value ="restart",
                     },
+                    new ApplicationCommandOptionChoiceProperties()
+                    {
+                        Name = "exec",
+                        Value ="exec",
+                    },
                 });
 
             return builder.Build();
@@ -85,7 +90,8 @@ namespace DD_Bot.Application.Commands
         {
             await arg.RespondAsync("Contacting Docker Service...");
             await dockerService.DockerUpdate();
-            
+
+            var execCommands = arg.Data.Options.FirstOrDefault(option => option.Name == "execCommands")?.Value as string;
             var command = arg.Data.Options.FirstOrDefault(option => option.Name == "command")?.Value as string;
             var dockerName = arg.Data.Options.FirstOrDefault(option => option.Name == "dockername")?.Value as string;
 
@@ -142,6 +148,25 @@ namespace DD_Bot.Application.Commands
                             }
                         }
                         break;
+                    case "exec":
+                        if (settings.UserStopPermissions.ContainsKey(arg.User.Id))
+                        {
+                            if (settings.UserStopPermissions[arg.User.Id].Contains(dockerName))
+                            {
+                                authorized = true;
+                            }
+                        }
+                        foreach (var role in userRoles)
+                        {
+                            if (settings.RoleStopPermissions.ContainsKey(role.Id))
+                            {
+                                if (settings.RoleStopPermissions[role.Id].Contains(dockerName))
+                                {
+                                    authorized = true;
+                                }
+                            }
+                        }
+                        break;    
                 }
 
                 if (!authorized)
@@ -188,6 +213,13 @@ namespace DD_Bot.Application.Commands
                         return;
                     }
                     break;
+                case "exec":
+                    if (dockerService.StoppedDockers.Contains(dockerName))
+                    {
+                        await arg.ModifyOriginalResponseAsync(edit => edit.Content = string.Format(dockerName + " is stopped"));
+                        return;
+                    }
+                    break;
             }
 
             switch (command)
@@ -201,6 +233,9 @@ namespace DD_Bot.Application.Commands
                case "restart":
                    dockerService.DockerCommandRestart(dockerId);
                     break;
+               case "exec":
+                   dockerService.DockerCommandExec(dockerId, execCommands);
+                    break; 
             }
 
             await arg.ModifyOriginalResponseAsync(edit =>
@@ -237,6 +272,16 @@ namespace DD_Bot.Application.Commands
                         if (dockerService.RunningDockers.Contains(dockerName))
                         {
                             await arg.ModifyOriginalResponseAsync(edit => edit.Content = arg.User.Mention + " " + dockerName +  " has been restarted");
+                            return;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    case "exec":
+                        if (dockerService.RunningDockers.Contains(dockerName))
+                        {
+                            await arg.ModifyOriginalResponseAsync(edit => edit.Content = arg.User.Mention + " Exec to " + dockerName +  " has been sent");
                             return;
                         }
                         else
